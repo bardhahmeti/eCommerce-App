@@ -1,150 +1,130 @@
+import org.junit.jupiter.api.Test;
 
-import org.junit.jupiter.api.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
-class OrderServiceTest_2 {
-
-    private OrderService orderService;
-
-    private OrderRepository orderRepository;
-    private PaymentGateway paymentGateway;
-    private InventoryService inventoryService;
-    private EmailService emailService;
-
-    private Order order;
-
-    @BeforeEach
-    void setup() {
-
-        orderRepository = mock(OrderRepository.class);
-        paymentGateway = mock(PaymentGateway.class);
-        inventoryService = mock(InventoryService.class);
-        emailService = mock(EmailService.class);
-
-        orderService = new OrderService(
-            orderRepository,
-            paymentGateway,
-            inventoryService,
-            emailService
-        );
-
-        order = new Order("ORD-100", "P01", 2, 50.0);
-    }
+class OrderServiceTest {
 
     @Test
-    void testEverything() {
+    void shouldConfirmOrderSuccessfully() {
 
         // Arrange
-        when(inventoryService.isAvailable("P01"))
-            .thenReturn(true);
+        ProductRepository productRepository =
+                mock(ProductRepository.class);
 
-        when(paymentGateway.processPayment(100.0))
-            .thenReturn(true);
+        PaymentService paymentService =
+                mock(PaymentService.class);
 
-        when(orderRepository.save(any(Order.class)))
-            .thenReturn(order);
+        OrderService orderService =
+                new OrderService(
+                        productRepository,
+                        paymentService);
+
+        Product product =
+                new Product("P01", 100, 10);
+
+        when(productRepository.findById("P01"))
+                .thenReturn(product);
+
+        when(paymentService.pay(200.0))
+                .thenReturn(true);
 
         // Act
-        Order result = orderService.placeOrder(order);
+        String result =
+                orderService.placeOrder("P01", 2);
 
         // Assert
-        assertNotNull(result);
-        assertEquals("ORD-100", result.getId());
-        assertEquals(100.0, result.getTotal());
-        assertTrue(result.isPaid());
+        assertEquals("Order confirmed", result);
 
-        verify(inventoryService).isAvailable("P01");
-        verify(paymentGateway).processPayment(100.0);
-        verify(orderRepository).save(any(Order.class));
-        verify(emailService).sendConfirmation("ORD-100");
-
-        // Additional scenarios
-        order.setQuantity(-1);
-
-        try {
-            orderService.placeOrder(order);
-        } catch (Exception e) {
-            System.out.println("Error occurred");
-        }
-
-        assertTrue(true);
-
-        order.setQuantity(0);
-
-        try {
-            orderService.placeOrder(order);
-        } catch (Exception e) {
-            // Ignore
-        }
-
-        assertNotNull(order);
-
-        // Test another scenario
-        when(inventoryService.isAvailable("P01"))
-            .thenReturn(false);
-
-        Order secondResult = orderService.placeOrder(order);
-
-        assertNull(secondResult);
-
-        verify(inventoryService, times(2))
-            .isAvailable("P01");
-
-        // Check internal implementation
-        verify(paymentGateway, times(1))
-            .processPayment(100.0);
+        verify(paymentService).pay(200.0);
     }
 
     @Test
-    void testPaymentFailure() {
+    void shouldReturnProductNotFound() {
 
-        when(inventoryService.isAvailable("P01"))
-            .thenReturn(true);
+        // Arrange
+        ProductRepository productRepository =
+                mock(ProductRepository.class);
 
-        when(paymentGateway.processPayment(100.0))
-            .thenReturn(false);
+        PaymentService paymentService =
+                mock(PaymentService.class);
 
-        try {
-            orderService.placeOrder(order);
-        } catch (Exception e) {
-            // Ignore exception
-        }
+        OrderService orderService =
+                new OrderService(
+                        productRepository,
+                        paymentService);
 
-        assertTrue(true);
+        when(productRepository.findById("P01"))
+                .thenReturn(null);
+
+        // Act
+        String result =
+                orderService.placeOrder("P01", 2);
+
+        // Assert
+        assertEquals("Product not found", result);
     }
 
     @Test
-    void testOrderStatus() {
+    void shouldReturnInvalidQuantity() {
 
-        order.setStatus("PAID");
+        // Arrange
+        ProductRepository productRepository =
+                mock(ProductRepository.class);
 
-        assertEquals("PAID", order.getStatus());
+        PaymentService paymentService =
+                mock(PaymentService.class);
 
-        order.setStatus("SHIPPED");
+        OrderService orderService =
+                new OrderService(
+                        productRepository,
+                        paymentService);
 
-        assertEquals("SHIPPED", order.getStatus());
+        Product product =
+                new Product("P01", 100, 10);
 
-        order.setStatus("DELIVERED");
+        when(productRepository.findById("P01"))
+                .thenReturn(product);
 
-        assertEquals("DELIVERED", order.getStatus());
+        // Act
+        String result =
+                orderService.placeOrder("P01", 0);
+
+        // Assert
+        assertEquals(
+                "Invalid quantity or insufficient stock",
+                result);
     }
 
     @Test
-    void testOrderWithCurrentUser() {
+    void shouldReturnPaymentFailed() {
 
-        String username = System.getProperty("user.name");
+        // Arrange
+        ProductRepository productRepository =
+                mock(ProductRepository.class);
 
-        assertEquals("student", username);
-    }
+        PaymentService paymentService =
+                mock(PaymentService.class);
 
-    @Test
-    void testOrderCreation() {
+        OrderService orderService =
+                new OrderService(
+                        productRepository,
+                        paymentService);
 
-        Order result = orderService.createOrder(order);
+        Product product =
+                new Product("P01", 100, 10);
 
-        assertNotNull(result);
-        assertTrue(true);
-        assertEquals("ORD-100", result.getId());
+        when(productRepository.findById("P01"))
+                .thenReturn(product);
+
+        when(paymentService.pay(200.0))
+                .thenReturn(false);
+
+        // Act
+        String result =
+                orderService.placeOrder("P01", 2);
+
+        // Assert
+        assertEquals("Payment failed", result);
     }
 }
